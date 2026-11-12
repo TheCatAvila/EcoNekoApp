@@ -14,7 +14,8 @@ const CODE_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 30;
 
 export default function VerifyEmailScreen() {
-  const params = useLocalSearchParams<{ email?: string }>();
+  const params = useLocalSearchParams<{ email?: string; resend?: string }>();
+  const shouldResendOnArrival = params.resend === '1';
 
   // El email llega por parámetro (registro/login) o desde el almacenamiento en memoria.
   const email = params.email ?? pendingEmailStorage.get();
@@ -35,6 +36,22 @@ export default function VerifyEmailScreen() {
   }, [cooldown]);
 
   useEffect(() => () => clearTimeout(redirectTimer.current), []);
+
+  // Viene desde el login con la cuenta sin verificar: enviamos un código nuevo una sola vez.
+  const resentOnArrival = useRef(false);
+  useEffect(() => {
+    if (!email || !shouldResendOnArrival || resentOnArrival.current) return;
+    resentOnArrival.current = true;
+    authService
+      .resendVerification(email)
+      .then(() =>
+        setInfo('Tu cuenta aún no está verificada. Te enviamos un código nuevo a tu correo.'),
+      )
+      .catch((err) => {
+        // Si el cooldown está activo, el código anterior sigue sirviendo.
+        setInfo(err instanceof ApiError ? err.message : null);
+      });
+  }, [email, shouldResendOnArrival]);
 
   // Sin email no hay nada que verificar.
   if (!email) return <Redirect href="/login" />;

@@ -84,8 +84,13 @@ function ContextRow({ title, subtitle, value, valueClass }: { title: string; sub
 
 /** Pantalla de bienvenida del chat. En móvil incluye el "contexto financiero" que en web era una columna lateral. */
 export default function ChatWelcome({ accounts, loadingContext, disabled, onSend }: Props) {
-  const creditAccounts = accounts.filter((a) => a.isCreditAccount);
-  const liquidAccounts = accounts.filter((a) => !a.isCreditAccount);
+  // Solo tarjetas y líneas de crédito usan cupo; los créditos (Loan) no son liquidez ni cupo
+  const creditAccounts = accounts.filter(
+    (a) => a.typeName === 'CreditCard' || a.typeName === 'CreditLine',
+  );
+  const liquidAccounts = accounts.filter(
+    (a) => a.typeName === 'Checking' || a.typeName === 'Prepaid' || a.typeName === 'Cash',
+  );
   const totalLiquidity = liquidAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
   const totalCreditUsed = creditAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
   const totalBilledThisMonth = creditAccounts.reduce(

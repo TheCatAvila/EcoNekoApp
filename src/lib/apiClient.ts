@@ -8,17 +8,38 @@ if (!API_BASE_URL) {
   console.warn('Falta EXPO_PUBLIC_API_ECONEKOAPI_BASE_URL en el archivo .env');
 }
 
+/** Códigos de error de negocio que envía el backend en `errors.code`. */
+export const API_ERROR_CODES = {
+  EmailNotVerified: 'EMAIL_NOT_VERIFIED',
+} as const;
+
 export class ApiError extends Error {
   status: number;
   errors: string[];
+  /** Errores por campo cuando el backend responde 400 de validación ({ campo: [mensajes] }). */
+  fieldErrors: Record<string, string[]>;
+  /** Código de negocio (ej: EMAIL_NOT_VERIFIED). */
+  code?: string;
 
-  constructor(message: string, status: number, errors: string[] = []) {
+  constructor(
+    message: string,
+    status: number,
+    errors: string[] = [],
+    fieldErrors: Record<string, string[]> = {},
+    code?: string,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.errors = errors;
+    this.fieldErrors = fieldErrors;
+    this.code = code;
   }
 }
+
+/** Mensaje legible de cualquier error (ApiError o Error), con un texto por defecto. */
+export const getErrorMessage = (err: unknown, fallback: string) =>
+  err instanceof Error && err.message ? err.message : fallback;
 
 /* En web se usaba window.dispatchEvent; en móvil, un listener simple. */
 type Listener = () => void;
@@ -54,8 +75,23 @@ interface RequestOptions {
 function extractErrors(payload: any): string[] {
   const errors = payload?.errors;
   if (Array.isArray(errors)) return errors.map(String);
-  if (errors && typeof errors === 'object') return Object.values(errors).flat().map(String);
+  if (errors && typeof errors === 'object') {
+    return Object.entries(errors)
+      .filter(([key]) => key !== 'code')
+      .flatMap(([, value]) => (Array.isArray(value) ? value : [value]))
+      .map(String);
+  }
   return [];
+}
+
+function extractFieldErrors(payload: any): Record<string, string[]> {
+  const errors = payload?.errors;
+  if (!errors || typeof errors !== 'object' || Array.isArray(errors)) return {};
+  return Object.fromEntries(
+    Object.entries(errors)
+      .filter(([key, value]) => key !== 'code' && Array.isArray(value))
+      .map(([key, value]) => [key, (value as unknown[]).map(String)]),
+  );
 }
 
 export async function request<T>(
@@ -86,8 +122,12 @@ export async function request<T>(
 
     const errors = extractErrors(payload);
     const message =
-      payload?.message ?? payload?.title ?? errors[0] ?? 'Ocurrió un error inesperado.';
-    throw new ApiError(message, response.status, errors);
+      payload?.message ??
+      payload?.title ??
+      errors[0] ??
+      (response.status === 413 ? 'El archivo es demasiado grande (máximo 15 MB).' : 'Ocurrió un error inesperado.');
+    const code = typeof payload?.errors?.code === 'string' ? payload.errors.code : undefined;
+    throw new ApiError(message, response.status, errors, extractFieldErrors(payload), code);
   }
 
   return payload?.data as T;

@@ -1,18 +1,27 @@
 import { Text, View } from 'react-native';
 import { CreditCard } from 'lucide-react-native';
-import type { FixedExpense } from '../../services/fixedExpensesService';
+import { fixedExpenseKey, type FixedExpense } from '../../services/fixedExpensesService';
 import type { ExpenseGroup } from '../../lib/expenseCalculations';
 import { formatCLP } from '../../lib/currency';
+import { describeCard } from '../../lib/cardLabels';
+import type { Card } from '../../types/finance';
 import { colors } from '../ui/theme';
 import ExpenseItem from './ExpenseItem';
 
 interface Props {
   group: ExpenseGroup;
-  deletingId: number | null;
+  /** Datos completos de la tarjeta (tipo, marca, últimos 4), si están disponibles. */
+  card?: Card;
+  /** Clave (tipo-id) del egreso que se está eliminando. */
+  deletingKey: string | null;
   onDelete: (expense: FixedExpense) => void;
 }
 
-export default function ExpenseCardGroup({ group, deletingId, onDelete }: Props) {
+export default function ExpenseCardGroup({ group, card, deletingKey, onDelete }: Props) {
+  const subtitle = [card ? describeCard(card) : null, card?.bankName ?? group.bankName]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <View className="overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-sm">
       {/* Header de la tarjeta */}
@@ -25,9 +34,9 @@ export default function ExpenseCardGroup({ group, deletingId, onDelete }: Props)
             <Text numberOfLines={1} className="font-bold text-neutral-900">
               {group.cardAlias}
             </Text>
-            {!!group.bankName && (
+            {!!subtitle && (
               <Text numberOfLines={1} className="text-xs text-neutral-500">
-                {group.bankName}
+                {subtitle}
               </Text>
             )}
           </View>
@@ -47,7 +56,7 @@ export default function ExpenseCardGroup({ group, deletingId, onDelete }: Props)
             // Suscripciones y cuotas pueden compartir id; el índice cubre ids faltantes.
             key={`${expense.type}-${expense.id ?? 'sin-id'}-${index}`}
             expense={expense}
-            isDeleting={deletingId === expense.id}
+            isDeleting={deletingKey === fixedExpenseKey(expense)}
             onDelete={onDelete}
           />
         ))}

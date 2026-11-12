@@ -198,6 +198,12 @@ export default function DashboardHome({ data }: DashboardHomeProps) {
           <StripItem label="Saldo en cuentas" value={data.liquidBalance} />
           <StripItem label="− Suscripciones por cobrar" value={s.pendingLiquidSubscriptions} />
           <StripItem label="− Facturado sin pagar" value={s.unpaidBilledStatements} />
+          {(s.pendingLoanPayments ?? 0) > 0 && (
+            <StripItem label="− Cuotas de créditos" value={s.pendingLoanPayments} />
+          )}
+          {(s.pendingIssuedCheques ?? 0) > 0 && (
+            <StripItem label="− Cheques por cobrar" value={s.pendingIssuedCheques} />
+          )}
         </View>
 
         {s.isInLiquidityDeficit && (
@@ -285,6 +291,13 @@ export default function DashboardHome({ data }: DashboardHomeProps) {
           <Row label="Cupo utilizado" value={formatCLP(data.totalCreditUsed)} valueClass="text-red-500" />
           <Row label="Cupo disponible" value={formatCLP(data.totalAvailableCredit)} />
           <Row label="Cupo total" value={formatCLP(data.totalCreditLimit)} />
+          {(data.totalLoanDebt ?? 0) > 0 && (
+            <Row
+              label="Deuda en créditos (aparte del cupo)"
+              value={formatCLP(data.totalLoanDebt)}
+              valueClass="text-red-500"
+            />
+          )}
         </View>
       </Card>
     </View>

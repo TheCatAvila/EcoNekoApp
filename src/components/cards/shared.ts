@@ -64,7 +64,7 @@ export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   Cash: 'Efectivo',
   CreditCard: 'Tarjeta de crédito',
   CreditLine: 'Línea de crédito',
-  Loan: 'Préstamo',
+  Loan: 'Crédito',
 };
 
 export const BRAND_OPTIONS = [
@@ -97,7 +97,7 @@ export const ACCOUNT_GROUPS: AccountGroup[] = [
   { key: 'checking', title: 'Cuentas corrientes y vista', shortLabel: 'Cuentas', description: 'Tu dinero disponible en el banco' },
   { key: 'prepaid', title: 'Prepago', shortLabel: 'Prepago', description: 'Tarjetas y cuentas de prepago' },
   { key: 'cash', title: 'Efectivo', shortLabel: 'Efectivo', description: 'Billeteras y dinero en mano' },
-  { key: 'loan', title: 'Préstamos', shortLabel: 'Préstamos', description: 'Créditos de consumo y otras deudas' },
+  { key: 'loan', title: 'Créditos', shortLabel: 'Créditos', description: 'Consumo, hipotecario y automotriz · no usan cupo de tarjetas' },
   { key: 'other', title: 'Otras cuentas', shortLabel: 'Otras', description: '' },
 ];
 

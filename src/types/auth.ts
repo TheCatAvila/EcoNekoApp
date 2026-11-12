@@ -1,9 +1,10 @@
-// Ajusta `User` para que coincida con tu UserDto del backend.
+// Espeja UserDto del backend
 export interface User {
   id: number;
   firstName: string;
   lastName: string;
   email: string;
+  isEmailVerified?: boolean;
 }
 
 // Espeja AuthResponseDto

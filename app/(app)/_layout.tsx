@@ -1,7 +1,7 @@
 // Equivale a <ProtectedRoute />: solo usuarios con sesión.
 // La barra de pestañas es el navbar común (igual que AppLayout en la web).
 import { Redirect, Tabs } from 'expo-router';
-import { CreditCard, LayoutDashboard, Receipt, Sparkles, TrendingUp } from 'lucide-react-native';
+import { CreditCard, FileText, LayoutDashboard, Receipt, Sparkles, TrendingUp } from 'lucide-react-native';
 import { useAuth } from '../../src/context/AuthContext';
 import { Screen } from '../../src/components/ui/Screen';
 import { LoadingView } from '../../src/components/ui/feedback';
@@ -26,7 +26,8 @@ export default function AppLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.red500,
         tabBarInactiveTintColor: colors.neutral400,
-        tabBarLabelStyle: { fontWeight: '700', fontSize: 11 },
+        // 6 secciones: etiqueta más pequeña para que quepan en pantallas angostas
+        tabBarLabelStyle: { fontWeight: '700', fontSize: 10 },
       }}
     >
       <Tabs.Screen
@@ -53,8 +54,15 @@ export default function AppLayout() {
       <Tabs.Screen
         name="tarjetas"
         options={{
-          title: 'Tarjetas',
+          title: 'Cuentas',
           tabBarIcon: ({ color, size }) => <CreditCard color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="cheques"
+        options={{
+          title: 'Cheques',
+          tabBarIcon: ({ color, size }) => <FileText color={color} size={size} />,
         }}
       />
       <Tabs.Screen

@@ -1,15 +1,14 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { API_BASE_URL, getAuthHeaders, request } from '../lib/apiClient';
+import { request } from '../lib/apiClient';
 import type { StatementDraft, StatementDto } from '../components/cards/shared';
 
 /**
- * Abre el selector de archivos del teléfono (PDF o imagen).
+ * Abre el selector de archivos del teléfono (solo PDF: el backend lo lee con Gemini).
  * Devuelve null si el usuario cancela.
- * En web esto era un <input type="file" accept="application/pdf,image/*">.
  */
 export async function pickStatementFile() {
   const result = await DocumentPicker.getDocumentAsync({
-    type: ['application/pdf', 'image/*'],
+    type: ['application/pdf'],
     copyToCacheDirectory: true,
     multiple: false,
   });
@@ -31,20 +30,8 @@ export async function analyzeStatement(
     type: file.mimeType ?? 'application/pdf',
   } as unknown as Blob);
 
-  const response = await fetch(`${API_BASE_URL}/Statements/analyze`, {
-    method: 'POST',
-    headers: await getAuthHeaders(),
-    credentials: 'include',
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const detail = response.status === 400 ? await response.text() : '';
-    throw new Error(detail);
-  }
-
-  const json = await response.json();
-  return json.data ?? json;
+  // POST /Statements/analyze (multipart, máx. 15 MB) → ApiResponse<StatementDraftDto>
+  return request<StatementDraft>('/Statements/analyze', { method: 'POST', formData, auth: true });
 }
 
 /** Paso 2: guardar el borrador revisado por el usuario. */

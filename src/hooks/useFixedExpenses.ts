@@ -3,6 +3,7 @@ import {
   getFixedExpenses,
   createFixedExpense,
   deleteFixedExpense,
+  fixedExpenseKey,
   type FixedExpense,
 } from '../services/fixedExpensesService';
 
@@ -12,7 +13,7 @@ export function useFixedExpenses() {
   const [expenses, setExpenses] = useState<FixedExpense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -37,19 +38,19 @@ export function useFixedExpenses() {
     [reload]
   );
 
+  // Se recibe el egreso completo: una suscripción y una cuota pueden tener el mismo id.
   const removeExpense = useCallback(
-    async (id: number) => {
-      setDeletingId(id);
+    async (expense: FixedExpense) => {
+      setDeletingKey(fixedExpenseKey(expense));
       try {
-        const target = expenses.find((e) => e.id === id);
-        await deleteFixedExpense(id, target?.type ?? 'subscription');
+        await deleteFixedExpense(expense);
         await reload();
       } finally {
-        setDeletingId(null);
+        setDeletingKey(null);
       }
     },
-    [expenses, reload]
+    [reload]
   );
 
-  return { expenses, isLoading, hasError, deletingId, reload, addExpense, removeExpense };
+  return { expenses, isLoading, hasError, deletingKey, reload, addExpense, removeExpense };
 }

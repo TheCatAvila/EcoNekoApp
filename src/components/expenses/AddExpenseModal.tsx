@@ -12,6 +12,8 @@ import {
 import { ModalSheet } from '../ui/ModalSheet';
 import { DateField, Input, NumberInput, SegmentedTabs, Select } from '../ui/form';
 import { colors } from '../ui/theme';
+import { describeCard, describeCardAccount } from '../../lib/cardLabels';
+import { formatCLP } from '../../lib/currency';
 
 interface FormState {
   name: string;
@@ -133,6 +135,7 @@ export default function AddExpenseModal({
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const isInstallment = form.type === 'installment';
+  const selectedCard = cards.find((c) => c.id === Number(form.cardId));
 
   // Sugerencia automática de categoría según el nombre (con debounce)
   useEffect(() => {
@@ -188,7 +191,7 @@ export default function AddExpenseModal({
   const handleSubmit = async () => {
     setErrorMessage(null);
 
-    const card = cards.find((c) => c.id === Number(form.cardId)) as any;
+    const card = cards.find((c) => c.id === Number(form.cardId));
     if (!card) return setErrorMessage('Selecciona una tarjeta o cuenta.');
     if (!form.name.trim()) return setErrorMessage('Ingresa un nombre.');
     if (form.categoryId === '') return setErrorMessage('Selecciona una categoría.');
@@ -267,13 +270,40 @@ export default function AddExpenseModal({
             onChange={(value) => update('cardId', value)}
             placeholder="Cargando tarjetas o sin tarjetas..."
             disabled={cards.length === 0}
-            options={cards.map((card: any) => ({
-              value: card.id as number,
-              label: `${card.alias || card.name || `Tarjeta #${card.id}`}${
-                card.bankName ? ` · ${card.bankName}` : ''
-              }`,
+            // Etiqueta + cuenta: distingue tarjetas con el mismo alias
+            options={cards.map((card) => ({
+              value: card.id,
+              label: `${card.alias} — ${describeCard(card)}`,
+              description: describeCardAccount(card),
             }))}
           />
+
+          {selectedCard && (
+            <View className="mt-2 flex-row items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2.5">
+              <View className="min-w-0 flex-1">
+                <Text numberOfLines={1} className="text-xs font-bold text-neutral-800">
+                  {describeCard(selectedCard)}
+                </Text>
+                <Text numberOfLines={1} className="text-[11px] text-neutral-500">
+                  {describeCardAccount(selectedCard)}
+                </Text>
+              </View>
+              {selectedCard.availableAmount != null && (
+                <View className="items-end">
+                  <Text className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    {selectedCard.isCreditAccount ? 'Cupo disponible' : 'Saldo'}
+                  </Text>
+                  <Text
+                    className={`text-sm font-black ${
+                      selectedCard.availableAmount < 0 ? 'text-red-500' : 'text-neutral-900'
+                    }`}
+                  >
+                    {formatCLP(selectedCard.availableAmount)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </Field>
 
         <Field

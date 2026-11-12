@@ -102,19 +102,28 @@ export default function ExpenseItem({ expense, isDeleting, onDelete }: Props) {
             </View>
           )}
         </View>
-        <Pressable
-          onPress={() => onDelete(expense)}
-          disabled={isDeleting}
-          accessibilityLabel={`Eliminar ${expense.name}`}
-          hitSlop={8}
-          className={`rounded-lg p-2 active:bg-red-50 ${isDeleting ? 'opacity-50' : ''}`}
-        >
-          {isDeleting ? (
-            <ActivityIndicator size="small" color={colors.neutral400} />
-          ) : (
-            <Trash2 size={16} color={colors.neutral400} />
-          )}
-        </Pressable>
+        {expense.isFromStatement ? (
+          // Cuotas importadas del estado de cuenta: se actualizan con el siguiente estado, no se borran a mano.
+          <View className="rounded-md bg-neutral-200 px-2 py-1">
+            <Text className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+              Estado de cuenta
+            </Text>
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => onDelete(expense)}
+            disabled={isDeleting}
+            accessibilityLabel={`Eliminar ${expense.name}`}
+            hitSlop={8}
+            className={`rounded-lg p-2 active:bg-red-50 ${isDeleting ? 'opacity-50' : ''}`}
+          >
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={colors.neutral400} />
+            ) : (
+              <Trash2 size={16} color={colors.neutral400} />
+            )}
+          </Pressable>
+        )}
       </View>
     </View>
   );

@@ -7,7 +7,15 @@ import {
   Repeat,
   TrendingUp,
 } from 'lucide-react-native';
-import { request } from '../../lib/apiClient';
+import { getErrorMessage } from '../../lib/apiClient';
+import { getCategoriesApi, type CategoryItem } from '../../services/categoriesService';
+import {
+  confirmPendingIncome,
+  createRecurringIncome,
+  createSingleIncome,
+  getPendingIncomes,
+  INCOME_TYPE,
+} from '../../services/incomesService';
 import { formatCLP } from '../../lib/currency';
 import { todayISO } from '../../lib/dates';
 import { ModalSheet } from '../ui/ModalSheet';
@@ -42,12 +50,6 @@ export interface PendingIncomeTransaction {
   isPending: boolean;
 }
 
-interface TransactionCategoryItem {
-  id: number;
-  name: string;
-  type?: number; // 1 = Income, 2 = Expense (opcional según tu DTO)
-}
-
 interface AddIncomeModalProps {
   open: boolean;
   accounts: IncomeAccount[];
@@ -57,14 +59,6 @@ interface AddIncomeModalProps {
   onClose: () => void;
   onSaved: () => void;
 }
-
-const INCOME_TYPE = 1; // TransactionType.Income
-
-// Ajusta estas rutas si en tu Controller tienen otro nombre
-const TRANSACTIONS_ENDPOINT = '/Transactions';
-const RECURRING_INCOMES_ENDPOINT = '/recurring-incomes';
-const CONFIRM_INCOME_ENDPOINT = (id: number) => `/Transactions/${id}/confirm-income`;
-const CATEGORIES_ENDPOINT = '/TransactionCategories';
 
 const canReceiveIncome = (account: IncomeAccount) =>
   !account.isCreditAccount && account.typeName !== 'Loan';
@@ -102,7 +96,7 @@ export default function AddIncomeModal({
   const [alreadyReceivedThisMonth, setAlreadyReceivedThisMonth] = useState(false);
 
   // Categorías y pendientes
-  const [categories, setCategories] = useState<TransactionCategoryItem[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [pendingList, setPendingList] = useState<PendingIncomeTransaction[]>([]);
   const [loadingPending, setLoadingPending] = useState(false);
 
@@ -133,20 +127,10 @@ export default function AddIncomeModal({
   useEffect(() => {
     if (!open) return;
 
-    // 1. Cargar categorías (silencioso si el endpoint no existe o falla)
-    request<TransactionCategoryItem[]>(CATEGORIES_ENDPOINT, { auth: true })
-      .then((data) => {
-        if (Array.isArray(data)) {
-          // Si tu categoría distingue por Type (1 = Income), filtramos; si no, mostramos todas
-          const filtered = data.some((c) => c.type !== undefined)
-            ? data.filter((c) => c.type === INCOME_TYPE)
-            : data;
-          setCategories(filtered);
-        }
-      })
-      .catch(() => {
-        // Ignorar si aún no hay endpoint de categorías
-      });
+    // 1. Categorías de ingreso (si falla, el campo queda opcional y vacío)
+    getCategoriesApi(INCOME_TYPE)
+      .then((data) => setCategories(Array.isArray(data) ? data : []))
+      .catch(() => setCategories([]));
 
     const initAmounts = (list: PendingIncomeTransaction[]) => {
       const initialAmounts: Record<number, string> = {};
@@ -164,9 +148,7 @@ export default function AddIncomeModal({
     }
 
     setLoadingPending(true);
-    request<PendingIncomeTransaction[]>(`${TRANSACTIONS_ENDPOINT}?type=1&isPending=true`, {
-      auth: true,
-    })
+    getPendingIncomes()
       .then((data) => {
         if (Array.isArray(data)) {
           const onlyPendingIncomes = data.filter((t) => t.isPending);
@@ -206,42 +188,28 @@ export default function AddIncomeModal({
     try {
       if (mode === 'single') {
         // 1. Ingreso estándar (impacta el saldo inmediatamente)
-        await request(TRANSACTIONS_ENDPOINT, {
-          method: 'POST',
-          auth: true,
-          body: {
-            accountId: Number(accountId),
-            categoryId: categoryId ? Number(categoryId) : null,
-            type: INCOME_TYPE,
-            amount: Number(amount),
-            description: description.trim(),
-            transactionDate: `${date}T12:00:00`,
-          },
+        await createSingleIncome({
+          accountId: Number(accountId),
+          categoryId: categoryId ? Number(categoryId) : null,
+          amount: Number(amount),
+          description: description.trim(),
+          date,
         });
       } else if (mode === 'recurring') {
         // 2. Ingreso fijo mensual (crea RecurringIncome + primera transacción pendiente o confirmada)
-        await request(RECURRING_INCOMES_ENDPOINT, {
-          method: 'POST',
-          auth: true,
-          body: {
-            accountId: Number(accountId),
-            categoryId: categoryId ? Number(categoryId) : null,
-            amount: Number(amount),
-            description: description.trim(),
-            dayOfMonth: day,
-            expectedDayOfMonth: day, // Enviamos ambos por compatibilidad con tu DTO
-            alreadyReceivedThisMonth,
-          },
+        await createRecurringIncome({
+          accountId: Number(accountId),
+          categoryId: categoryId ? Number(categoryId) : null,
+          amount: Number(amount),
+          description: description.trim(),
+          dayOfMonth: day,
+          alreadyReceivedThisMonth,
         });
       }
 
       onSaved();
     } catch (err) {
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : 'Hubo un error al registrar el ingreso. Inténtalo nuevamente.',
-      );
+      setError(getErrorMessage(err, 'Hubo un error al registrar el ingreso. Inténtalo nuevamente.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -262,24 +230,14 @@ export default function AddIncomeModal({
         return;
       }
 
-      await request(CONFIRM_INCOME_ENDPOINT(tx.id), {
-        method: 'POST', // Cambia a 'PATCH' si tu endpoint usa [HttpPatch]
-        auth: true,
-        body: {
-          transactionId: tx.id,
-          actualAmount: finalAmount,
-        },
-      });
+      // Solo enviamos el monto si cambió; si no, el backend usa el esperado.
+      await confirmPendingIncome(tx.id, finalAmount !== tx.amount ? finalAmount : undefined);
 
       // Quitamos de la lista local y refrescamos el dashboard
       setPendingList((prev) => prev.filter((item) => item.id !== tx.id));
       onSaved();
     } catch (err) {
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : 'No se pudo confirmar el ingreso pendiente.',
-      );
+      setError(getErrorMessage(err, 'No se pudo confirmar el ingreso pendiente.'));
     } finally {
       setConfirmingTxId(null);
     }

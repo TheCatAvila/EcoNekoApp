@@ -3,15 +3,14 @@ import { Pressable, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Mail } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
-import { ApiError } from '../../lib/apiClient';
+import { API_ERROR_CODES, ApiError } from '../../lib/apiClient';
 import { pendingEmailStorage } from '../../lib/storage';
 import AuthLayout, { FooterLink } from '../../components/auth/AuthLayout';
 import { EmailField, PasswordField, SubmitButton } from '../../components/auth/ui';
 import { Banner } from '../../components/ui/feedback';
 
-// Ideal: que el backend devuelva 403 (o un código "EMAIL_NOT_VERIFIED") en este caso.
-const isUnverifiedError = (err: ApiError) =>
-  err.status === 403 || /verific|verify/i.test(err.message);
+// El backend responde 403 con errors.code = "EMAIL_NOT_VERIFIED" si la cuenta no está verificada.
+const isUnverifiedError = (err: ApiError) => err.code === API_ERROR_CODES.EmailNotVerified;
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -35,7 +34,8 @@ export default function LoginScreen() {
       if (err instanceof ApiError) {
         if (isUnverifiedError(err)) {
           pendingEmailStorage.set(cleanEmail);
-          router.push({ pathname: '/verify-email', params: { email: cleanEmail } });
+          // Al venir desde el login pedimos un código nuevo (el del registro puede haber expirado).
+          router.push({ pathname: '/verify-email', params: { email: cleanEmail, resend: '1' } });
           return;
         }
         setError(err.message);

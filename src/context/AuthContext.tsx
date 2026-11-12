@@ -2,7 +2,8 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { tokenStorage, userStorage } from '../lib/storage';
-import { onUnauthorized, request } from '../lib/apiClient';
+import { onUnauthorized } from '../lib/apiClient';
+import { authService } from '../services/authService';
 import type { User, LoginRequest } from '../types/auth';
 
 interface AuthContextType {
@@ -30,27 +31,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: LoginRequest) => {
-    const response = await request<{ user: User; token?: string }>('/auth/login', {
-      method: 'POST',
-      body: credentials,
-    });
+    // El backend devuelve el JWT (que en móvil se envía como Bearer) y deja también la cookie.
+    const response = await authService.login(credentials);
 
     if (response.token) await tokenStorage.set(response.token);
     await userStorage.set(response.user);
     setUser(response.user);
   };
 
-  const logout = useCallback(async () => {
+  /** remote=false cuando la sesión ya expiró (401): no tiene sentido llamar al backend. */
+  const closeSession = useCallback(async (remote: boolean) => {
     try {
-      // Opcional: llamar a un endpoint del backend que borre la cookie "econeko_auth".
+      if (remote) await authService.logout();
+    } catch {
+      // Aunque falle (sin red), cerramos la sesión local igual.
     } finally {
       await Promise.all([userStorage.clear(), tokenStorage.clear()]).catch(() => undefined);
       setUser(null);
     }
   }, []);
 
+  const logout = useCallback(() => closeSession(true), [closeSession]);
+
   // Si la API responde 401 en una petición autenticada, se cierra la sesión.
-  useEffect(() => onUnauthorized(() => void logout()), [logout]);
+  useEffect(() => onUnauthorized(() => void closeSession(false)), [closeSession]);
 
   return (
     <AuthContext.Provider value={{ user, isLoading, login, logout }}>

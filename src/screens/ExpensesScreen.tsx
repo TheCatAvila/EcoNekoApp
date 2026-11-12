@@ -5,6 +5,7 @@ import { CalendarClock, Plus } from 'lucide-react-native';
 import type { FixedExpense } from '../services/fixedExpensesService';
 import { useExpenseDependencies } from '../hooks/useExpenseDependencies';
 import { useFixedExpenses } from '../hooks/useFixedExpenses';
+import { getErrorMessage } from '../lib/apiClient';
 import {
   calculateFixedSummary,
   groupExpensesByCard,
@@ -23,7 +24,7 @@ import { colors } from '../components/ui/theme';
 
 export default function ExpensesScreen() {
   const { cards, categories, summary, handleCategoryCreated } = useExpenseDependencies();
-  const { expenses, isLoading, hasError, deletingId, reload, addExpense, removeExpense } =
+  const { expenses, isLoading, hasError, deletingKey, reload, addExpense, removeExpense } =
     useFixedExpenses();
 
   const [filter, setFilter] = useState<ExpenseFilter>('all');
@@ -42,9 +43,9 @@ export default function ExpensesScreen() {
     });
     if (!ok) return;
     try {
-      await removeExpense(expense.id);
-    } catch {
-      Alert.alert('Error', 'No se pudo eliminar el egreso. Inténtalo nuevamente.');
+      await removeExpense(expense);
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err, 'No se pudo eliminar el egreso. Inténtalo nuevamente.'));
     }
   };
 
@@ -129,7 +130,8 @@ export default function ExpensesScreen() {
                   <ExpenseCardGroup
                     key={group.cardId}
                     group={group}
-                    deletingId={deletingId}
+                    card={cards.find((c) => c.id === group.cardId)}
+                    deletingKey={deletingKey}
                     onDelete={handleDelete}
                   />
                 ))}

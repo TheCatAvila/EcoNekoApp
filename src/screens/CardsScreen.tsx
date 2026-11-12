@@ -12,9 +12,13 @@ import {
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { formatCLP } from '../lib/currency';
-import { request } from '../lib/apiClient';
+import { getErrorMessage, request } from '../lib/apiClient';
 import type { Account } from '../types/finance';
 import { analyzeStatement, confirmStatement, pickStatementFile } from '../services/statementsService';
+import { deleteLoan, getLoans, type Loan } from '../services/loansService';
+import LoanCard from '../components/loans/LoanCard';
+import AddLoanModal from '../components/loans/AddLoanModal';
+import PayLoanModal from '../components/loans/PayLoanModal';
 import AccountCard from '../components/cards/AccountCard';
 import AddAccountModal from '../components/cards/AddAccountModal';
 import AddCardModal from '../components/cards/AddCardModal';
@@ -90,6 +94,12 @@ export default function CardsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
 
+  // Créditos (línea aparte de las tarjetas)
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [isAddLoanOpen, setIsAddLoanOpen] = useState(false);
+  const [payingLoan, setPayingLoan] = useState<Loan | null>(null);
+  const [deletingLoanId, setDeletingLoanId] = useState<number | null>(null);
+
   // Estado de cuenta: paso 1 (analizar) y paso 2 (revisar y confirmar)
   const [uploadingAccountId, setUploadingAccountId] = useState<number | null>(null);
   const [statementDraft, setStatementDraft] = useState<StatementDraft | null>(null);
@@ -111,33 +121,48 @@ export default function CardsScreen() {
     accounts: accounts
       .filter((a) => getAccountGroupKey(a) === group.key)
       .sort((a, b) => a.name.localeCompare(b.name, 'es')),
-  })).filter((group) => group.accounts.length > 0);
+  }))
+    // Los créditos de /Loans también cuentan para el grupo "Créditos"
+    .map((group) => ({ ...group, count: group.accounts.length + (group.key === 'loan' ? loans.length : 0) }))
+    .filter((group) => group.count > 0);
 
   const filtered =
     activeTab === 'all' ? accountGroups : accountGroups.filter((g) => g.key === activeTab);
   const visibleGroups = filtered.length > 0 ? filtered : accountGroups;
 
-  // Resumen general
-  const creditAccounts = accounts.filter((a) => a.isCreditAccount);
+  // Resumen general. Solo tarjetas y líneas de crédito usan cupo: los créditos (Loan) van aparte.
+  const creditAccounts = accounts.filter((a) => getAccountGroupKey(a) === 'credit');
   const totalLiquid = liquidAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
   const totalCreditUsed = creditAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
   const totalCreditAvailable = creditAccounts.reduce((sum, a) => sum + (a.availableCredit || 0), 0);
-  const totalPaymentThisMonth = creditAccounts.reduce(
+  const totalCardsPaymentThisMonth = creditAccounts.reduce(
     (sum, a) => sum + (a.paymentRequiredThisMonth || 0),
     0,
   );
+  const totalLoansPaymentThisMonth = loans
+    .filter((l) => !l.isCurrentMonthPaid && l.paidInstallments < l.totalInstallments)
+    .reduce((sum, l) => sum + (l.monthlyPayment || 0), 0);
+  const totalPaymentThisMonth = totalCardsPaymentThisMonth + totalLoansPaymentThisMonth;
 
   const groupSummary = (key: AccountGroupKey, list: Account[]) => {
     const total = list.reduce((sum, a) => sum + (a.balance || 0), 0);
     if (key === 'credit') return `Utilizado ${formatCLP(total)}`;
-    if (key === 'loan') return `Deuda ${formatCLP(total)}`;
+    if (key === 'loan') {
+      const loansDebt = loans.reduce((sum, l) => sum + (l.outstandingBalance || 0), 0);
+      return `Deuda ${formatCLP(total + loansDebt)}`;
+    }
     return `Saldo ${formatCLP(total)}`;
   };
 
   const fetchAccounts = useCallback(async () => {
     try {
-      const accountsResponse = await request<Account[]>('/Accounts/me', { auth: true });
+      const [accountsResponse, loansResponse] = await Promise.all([
+        request<Account[]>('/Accounts/me', { auth: true }),
+        // Si /Loans/me falla, la pantalla sigue mostrando cuentas y tarjetas
+        getLoans().catch(() => [] as Loan[]),
+      ]);
       setAccounts(accountsResponse);
+      setLoans(Array.isArray(loansResponse) ? loansResponse : []);
       setError(null);
     } catch {
       setError('No pudimos cargar tus cuentas y tarjetas.');
@@ -166,9 +191,7 @@ export default function CardsScreen() {
       setUploadingAccountId(null);
       Alert.alert(
         'Error',
-        err instanceof Error && err.message
-          ? err.message
-          : 'Hubo un error al analizar tu estado de cuenta. Inténtalo nuevamente.',
+        getErrorMessage(err, 'Hubo un error al analizar tu estado de cuenta. Inténtalo nuevamente.'),
       );
     }
   };
@@ -189,10 +212,28 @@ export default function CardsScreen() {
       setStatementDraft(null);
       afterModalClose(() => setSavedStatement(saved));
       fetchAccounts();
-    } catch {
-      Alert.alert('Error', 'Hubo un error al guardar el estado de cuenta. Inténtalo nuevamente.');
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err, 'Hubo un error al guardar el estado de cuenta. Inténtalo nuevamente.'));
     } finally {
       setIsConfirmingStatement(false);
+    }
+  };
+
+  const handleDeleteLoan = async (loan: Loan) => {
+    const ok = await confirm(
+      'Eliminar crédito',
+      `¿Eliminar el crédito "${loan.name}"? Los pagos ya registrados no se borran.`,
+      { confirmText: 'Eliminar' },
+    );
+    if (!ok) return;
+    setDeletingLoanId(loan.id);
+    try {
+      await deleteLoan(loan.id);
+      fetchAccounts();
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err, 'No se pudo eliminar el crédito. Inténtalo nuevamente.'));
+    } finally {
+      setDeletingLoanId(null);
     }
   };
 
@@ -210,10 +251,10 @@ export default function CardsScreen() {
   }
 
   const tabs: { key: FilterTab; label: string }[] = [
-    { key: 'all', label: `Todas (${accounts.length})` },
+    { key: 'all', label: `Todas (${accounts.length + loans.length})` },
     ...accountGroups.map((g) => ({
       key: g.key as FilterTab,
-      label: `${g.shortLabel} (${g.accounts.length})`,
+      label: `${g.shortLabel} (${g.count})`,
     })),
   ];
 
@@ -266,6 +307,20 @@ export default function CardsScreen() {
         onSaved={afterSave(() => setAddCardModal({ open: false }))}
       />
 
+      <AddLoanModal
+        open={isAddLoanOpen}
+        payFromAccounts={liquidAccounts}
+        onClose={() => setIsAddLoanOpen(false)}
+        onSaved={afterSave(() => setIsAddLoanOpen(false))}
+      />
+
+      <PayLoanModal
+        loan={payingLoan}
+        payFromAccounts={liquidAccounts}
+        onClose={() => setPayingLoan(null)}
+        onSaved={afterSave(() => setPayingLoan(null))}
+      />
+
       <PageHeader
         title="Cuentas y tarjetas"
         subtitle="Administra tus saldos y cupos, paga tus tarjetas y sube estados de cuenta"
@@ -283,6 +338,12 @@ export default function CardsScreen() {
               icon={<CreditCard size={16} color={colors.neutral700} />}
               label="Nueva tarjeta"
             />
+            <ActionButton
+              variant="light"
+              onPress={() => setIsAddLoanOpen(true)}
+              icon={<HandCoins size={16} color={colors.neutral700} />}
+              label="Nuevo crédito"
+            />
           </>
         }
       />
@@ -295,7 +356,7 @@ export default function CardsScreen() {
       )}
 
       {/* Resumen general */}
-      {accounts.length > 0 && (
+      {(accounts.length > 0 || loans.length > 0) && (
         <View className="gap-3">
           <View className="flex-row gap-3">
             <SummaryTile label="Saldo en cuentas" value={totalLiquid} valueClass="text-neutral-900" hint="Vista, prepago y efectivo" />
@@ -308,7 +369,12 @@ export default function CardsScreen() {
           </View>
           <View className="flex-row gap-3">
             <SummaryTile label="Cupo disponible" value={totalCreditAvailable} valueClass="text-green-600" />
-            <SummaryTile label="A pagar este mes" value={totalPaymentThisMonth} valueClass="text-neutral-900" hint="Suma de tus tarjetas" />
+            <SummaryTile
+              label="A pagar este mes"
+              value={totalPaymentThisMonth}
+              valueClass="text-neutral-900"
+              hint={loans.length > 0 ? 'Tarjetas + cuotas de créditos' : 'Suma de tus tarjetas'}
+            />
           </View>
         </View>
       )}
@@ -336,7 +402,7 @@ export default function CardsScreen() {
       )}
 
       {/* Listado de Cuentas y Tarjetas */}
-      {accounts.length === 0 ? (
+      {accounts.length === 0 && loans.length === 0 ? (
         <View className="items-center rounded-3xl border border-neutral-100 bg-white p-8 shadow-sm">
           <View className="mb-4 h-12 w-12 items-center justify-center rounded-2xl bg-neutral-100">
             <Landmark size={24} color={colors.neutral500} />
@@ -367,7 +433,7 @@ export default function CardsScreen() {
                     <View className="flex-1">
                       <Text numberOfLines={1} className="font-bold text-neutral-900">
                         {group.title}{' '}
-                        <Text className="font-medium text-neutral-400">({group.accounts.length})</Text>
+                        <Text className="font-medium text-neutral-400">({group.count})</Text>
                       </Text>
                       {!!group.description && (
                         <Text numberOfLines={1} className="text-xs text-neutral-500">
@@ -382,6 +448,16 @@ export default function CardsScreen() {
                 </View>
 
                 <View className="gap-4">
+                  {group.key === 'loan' &&
+                    loans.map((loan) => (
+                      <LoanCard
+                        key={`loan-${loan.id}`}
+                        loan={loan}
+                        isDeleting={deletingLoanId === loan.id}
+                        onPay={setPayingLoan}
+                        onDelete={handleDeleteLoan}
+                      />
+                    ))}
                   {group.accounts.map((account) => (
                     <AccountCard
                       key={account.id}

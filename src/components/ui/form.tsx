@@ -64,6 +64,8 @@ export function NumberInput({
 export interface SelectOption<T extends string | number> {
   value: T;
   label: string;
+  /** Texto secundario bajo la opción (ej: la cuenta a la que pertenece la tarjeta). */
+  description?: string;
 }
 
 interface SelectProps<T extends string | number> {
@@ -129,13 +131,18 @@ export function Select<T extends string | number>({
                   }}
                   className="flex-row items-center justify-between px-6 py-4 active:bg-neutral-50"
                 >
-                  <Text
-                    className={`text-base ${
-                      isSelected ? 'font-bold text-neutral-900' : 'text-neutral-700'
-                    }`}
-                  >
-                    {item.label}
-                  </Text>
+                  <View className="flex-1 pr-3">
+                    <Text
+                      className={`text-base ${
+                        isSelected ? 'font-bold text-neutral-900' : 'text-neutral-700'
+                      }`}
+                    >
+                      {item.label}
+                    </Text>
+                    {!!item.description && (
+                      <Text className="mt-0.5 text-xs text-neutral-500">{item.description}</Text>
+                    )}
+                  </View>
                   {isSelected && <Check size={18} color={colors.green600} />}
                 </Pressable>
               );

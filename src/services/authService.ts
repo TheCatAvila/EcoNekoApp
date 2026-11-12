@@ -19,7 +19,10 @@ export const authService = {
   verifyEmail: (dto: VerifyEmailRequest) =>
     request<null>('/auth/verify-email', { method: 'POST', body: dto }),
 
-  // Requiere crear este endpoint en el backend (ver instrucciones).
+  /** Borra la cookie de sesión en el backend. */
+  logout: () => request<null>('/auth/logout', { method: 'POST' }),
+
+  /** Reenvía el código de verificación (el backend aplica un cooldown de 30 s). */
   resendVerification: (email: string) =>
     request<null>('/auth/resend-verification', { method: 'POST', body: { email } }),
 

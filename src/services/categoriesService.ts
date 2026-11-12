@@ -16,17 +16,11 @@ export interface CategorySuggestion {
   source: 'UserHistory' | 'KeywordDictionary' | 'None';
 }
 
-export async function getCategoriesApi(): Promise<CategoryItem[]> {
-  try {
-    return await request<CategoryItem[]>('/TransactionCategories', { auth: true });
-  } catch {
-    // Fallback por si el endpoint en el backend está como /TransactionCategories/me o /Categories
-    try {
-      return await request<CategoryItem[]>('/TransactionCategories/me', { auth: true });
-    } catch {
-      return await request<CategoryItem[]>('/Categories', { auth: true });
-    }
-  }
+/** Categorías del usuario (sistema + propias). type: 1 = Ingreso, 2 = Gasto; sin type trae todas. */
+export async function getCategoriesApi(type?: 1 | 2): Promise<CategoryItem[]> {
+  const query = type ? `?type=${type}` : '';
+  const list = await request<CategoryItem[]>(`/TransactionCategories/me${query}`, { auth: true });
+  return list ?? [];
 }
 
 export async function suggestCategoryApi(
@@ -53,17 +47,9 @@ export async function createCustomCategoryApi(
   icon = 'tag',
   type: 1 | 2 = 2
 ): Promise<CategoryItem> {
-  try {
-    return await request<CategoryItem>('/TransactionCategories', {
-      method: 'POST',
-      body: { name: name.trim(), icon, type },
-      auth: true,
-    });
-  } catch {
-    return await request<CategoryItem>('/Categories', {
-      method: 'POST',
-      body: { name: name.trim(), icon, type },
-      auth: true,
-    });
-  }
+  return request<CategoryItem>('/TransactionCategories', {
+    method: 'POST',
+    body: { name: name.trim(), icon, type },
+    auth: true,
+  });
 }

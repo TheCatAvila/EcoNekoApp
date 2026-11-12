@@ -14,6 +14,8 @@ export interface FixedExpense {
   totalInstallments: number | null; // null en suscripciones
   paidInstallments: number | null;  // cuotas ya pagadas (null en suscripciones)
   nextChargeDate: string;           // 'YYYY-MM-DD'
+  /** Cuotas leídas desde un estado de cuenta (sin plan): no se pueden eliminar desde aquí. */
+  isFromStatement?: boolean;
 }
 
 export interface CreateFixedExpensePayload {
@@ -75,45 +77,43 @@ interface CreateSubscriptionRequestDto {
 /* ───────────── Contrato del backend (Cuotas / Installments) ───────────── */
 
 interface InstallmentItemDto {
-  // El backend puede exponer el identificador con otro nombre; se aceptan las variantes comunes.
-  id?: number;
-  installmentId?: number;
-  installmentPlanId?: number;
-  purchaseId?: number;
+  /** InstallmentPlanId o, si vino de un estado de cuenta, el Id de la última cuota. */
+  id: number;
+  installmentPlanId: number | null;
+  isFromStatement: boolean;
   accountId: number;
   accountName: string;
+  bankName?: string | null;
   cardId: number | null;
   cardName: string | null;
   categoryId?: number | null;
-  categoryName?: string | null;
-  name?: string;
-  description?: string;
-  monthlyAmount?: number;
-  installmentAmount?: number;
+  description: string;
+  monthlyAmount: number;
+  currentInstallment: number;
   totalInstallments: number;
   paidInstallments: number;
-  nextBillingDate?: string;
-  nextPaymentDate?: string;
-  nextChargeDate?: string;
+  remainingInstallments: number;
+  nextInstallmentDate: string; // DateOnly -> 'YYYY-MM-DD'
 }
 
 interface InstallmentsOverviewDto {
-  installments?: InstallmentItemDto[];
-  items?: InstallmentItemDto[];
+  futureInstallmentBurden: number;
+  totalRemainingDebt: number;
+  activePlansCount: number;
+  installments: InstallmentItemDto[];
 }
 
-interface CreateInstallmentRequestDto {
-  accountId?: number;
-  cardId: number;
+interface CreateInstallmentPlanRequestDto {
+  accountId: number;
+  cardId: number | null;
   categoryId?: number;
-  name: string;
   description: string;
   monthlyAmount: number;
-  installmentAmount: number;
+  /** Cuota que viene (cuotas pagadas + 1). */
+  currentInstallment: number;
   totalInstallments: number;
-  paidInstallments: number;
-  firstBillingDate: string;
-  nextChargeDate: string;
+  nextInstallmentDate: string;
+  impactAccountBalance: boolean;
 }
 
 const FREQUENCY = { Weekly: 1, Monthly: 2, Yearly: 3 } as const;
@@ -135,22 +135,18 @@ const subscriptionToExpense = (dto: SubscriptionItemDto): FixedExpense => ({
 });
 
 const installmentToExpense = (dto: InstallmentItemDto): FixedExpense => ({
-  id: (dto.id ?? dto.installmentId ?? dto.installmentPlanId ?? dto.purchaseId) as number,
-  name: dto.name ?? dto.description ?? 'Compra en cuotas',
+  id: dto.id,
+  name: dto.description || 'Compra en cuotas',
   type: 'installment',
   accountId: dto.accountId,
   cardId: dto.cardId ?? -dto.accountId,
   cardAlias: dto.cardName ?? dto.accountName,
-  bankName: dto.cardName ? dto.accountName : null,
-  monthlyAmount: Math.round(dto.monthlyAmount ?? dto.installmentAmount ?? 0),
+  bankName: dto.bankName ?? (dto.cardName ? dto.accountName : null),
+  monthlyAmount: Math.round(dto.monthlyAmount ?? 0),
   totalInstallments: dto.totalInstallments,
   paidInstallments: dto.paidInstallments,
-  nextChargeDate: (
-    dto.nextBillingDate ??
-    dto.nextPaymentDate ??
-    dto.nextChargeDate ??
-    new Date().toISOString()
-  ).slice(0, 10),
+  nextChargeDate: (dto.nextInstallmentDate ?? new Date().toISOString()).slice(0, 10),
+  isFromStatement: dto.isFromStatement,
 });
 
 /* ───────────── Suscripciones (API real) ───────────── */
@@ -190,40 +186,26 @@ const createSubscription = async (payload: CreateFixedExpensePayload): Promise<F
 /* ───────────── Cuotas (API real) ───────────── */
 
 const getInstallments = async (): Promise<FixedExpense[]> => {
-  // Ajusta la ruta si en tu backend quedó como '/InstallmentPlans/me' o '/Transactions/installments'
-  const response = await request<InstallmentsOverviewDto | InstallmentItemDto[]>(
-    '/Installments/me?onlyActive=true',
-    { auth: true }
-  );
-
-  const list = Array.isArray(response)
-    ? response
-    : response.installments ?? response.items ?? [];
-
-  const mapped = list.map(installmentToExpense);
-  if (mapped.some((e) => e.id === undefined)) {
-    console.warn(
-      'Hay cuotas sin id en /Installments/me. Revisa el nombre del campo en el DTO del backend: ' +
-        'sin id no se pueden eliminar.',
-      list[0]
-    );
-  }
-  return mapped;
+  const overview = await request<InstallmentsOverviewDto>('/Installments/me', { auth: true });
+  return (overview?.installments ?? []).map(installmentToExpense);
 };
 
 const createInstallment = async (payload: CreateFixedExpensePayload): Promise<FixedExpense> => {
-  const body: CreateInstallmentRequestDto = {
+  if (payload.accountId == null) {
+    throw new Error('Falta la cuenta de la compra en cuotas.');
+  }
+
+  const body: CreateInstallmentPlanRequestDto = {
     accountId: payload.accountId,
-    cardId: payload.cardId,
+    cardId: payload.cardId > 0 ? payload.cardId : null,
     categoryId: payload.categoryId,
-    name: payload.name.trim(),
     description: payload.name.trim(),
     monthlyAmount: payload.monthlyAmount,
-    installmentAmount: payload.monthlyAmount,
-    totalInstallments: payload.totalInstallments ?? 1,
-    paidInstallments: payload.paidInstallments ?? 0,
-    firstBillingDate: payload.nextChargeDate,
-    nextChargeDate: payload.nextChargeDate,
+    currentInstallment: (payload.paidInstallments ?? 0) + 1,
+    totalInstallments: payload.totalInstallments ?? 2,
+    nextInstallmentDate: payload.nextChargeDate,
+    // Suma la deuda restante al cupo utilizado de la tarjeta.
+    impactAccountBalance: true,
   };
 
   const created = await request<InstallmentItemDto>('/Installments', {
@@ -262,10 +244,17 @@ export const createFixedExpense = async (
   return createInstallment(payload);
 };
 
-export const deleteFixedExpense = async (
-  id: number,
-  type: FixedExpenseType = 'subscription'
-): Promise<void> => {
-  const endpoint = type === 'installment' ? `/Installments/${id}` : `/Subscriptions/${id}`;
-  await request<null>(endpoint, { method: 'DELETE', auth: true });
+export const deleteFixedExpense = async (expense: FixedExpense): Promise<void> => {
+  if (expense.type === 'installment' && expense.isFromStatement) {
+    throw new Error(
+      'Estas cuotas vienen de tu estado de cuenta. Se actualizan solas cuando subes el siguiente.'
+    );
+  }
+  const endpoint =
+    expense.type === 'installment' ? `/Installments/${expense.id}` : `/Subscriptions/${expense.id}`;
+  await request<boolean>(endpoint, { method: 'DELETE', auth: true });
 };
+
+/** Clave única por egreso: suscripciones y cuotas pueden compartir el mismo id numérico. */
+export const fixedExpenseKey = (expense: Pick<FixedExpense, 'type' | 'id'>) =>
+  `${expense.type}-${expense.id}`;
