@@ -75,7 +75,11 @@ interface CreateSubscriptionRequestDto {
 /* ───────────── Contrato del backend (Cuotas / Installments) ───────────── */
 
 interface InstallmentItemDto {
-  id: number;
+  // El backend puede exponer el identificador con otro nombre; se aceptan las variantes comunes.
+  id?: number;
+  installmentId?: number;
+  installmentPlanId?: number;
+  purchaseId?: number;
   accountId: number;
   accountName: string;
   cardId: number | null;
@@ -131,7 +135,7 @@ const subscriptionToExpense = (dto: SubscriptionItemDto): FixedExpense => ({
 });
 
 const installmentToExpense = (dto: InstallmentItemDto): FixedExpense => ({
-  id: dto.id,
+  id: (dto.id ?? dto.installmentId ?? dto.installmentPlanId ?? dto.purchaseId) as number,
   name: dto.name ?? dto.description ?? 'Compra en cuotas',
   type: 'installment',
   accountId: dto.accountId,
@@ -196,7 +200,15 @@ const getInstallments = async (): Promise<FixedExpense[]> => {
     ? response
     : response.installments ?? response.items ?? [];
 
-  return list.map(installmentToExpense);
+  const mapped = list.map(installmentToExpense);
+  if (mapped.some((e) => e.id === undefined)) {
+    console.warn(
+      'Hay cuotas sin id en /Installments/me. Revisa el nombre del campo en el DTO del backend: ' +
+        'sin id no se pueden eliminar.',
+      list[0]
+    );
+  }
+  return mapped;
 };
 
 const createInstallment = async (payload: CreateFixedExpensePayload): Promise<FixedExpense> => {

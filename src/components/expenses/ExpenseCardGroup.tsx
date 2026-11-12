@@ -42,9 +42,10 @@ export default function ExpenseCardGroup({ group, deletingId, onDelete }: Props)
 
       {/* Egresos de la tarjeta */}
       <View className="gap-3 p-4">
-        {group.items.map((expense) => (
+        {group.items.map((expense, index) => (
           <ExpenseItem
-            key={`${expense.type}-${expense.id}`}
+            // Suscripciones y cuotas pueden compartir id; el índice cubre ids faltantes.
+            key={`${expense.type}-${expense.id ?? 'sin-id'}-${index}`}
             expense={expense}
             isDeleting={deletingId === expense.id}
             onDelete={onDelete}
