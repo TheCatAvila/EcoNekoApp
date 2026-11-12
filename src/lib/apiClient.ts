@@ -6,7 +6,15 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_ECONEKOAPI_BASE_URL ?? '
 
 if (!API_BASE_URL) {
   console.warn('Falta EXPO_PUBLIC_API_ECONEKOAPI_BASE_URL en el archivo .env');
+} else if (__DEV__) {
+  // Aparece en la terminal de Expo: confirma a qué API está llamando el celular.
+  console.log(`[EcoNeko] API: ${API_BASE_URL}`);
 }
+
+/** Sin límite, un fetch a una IP inalcanzable deja la app cargando para siempre. */
+const REQUEST_TIMEOUT_MS = 20_000;
+/** Analizar un estado de cuenta con IA puede tardar bastante más. */
+const UPLOAD_TIMEOUT_MS = 180_000;
 
 /** Códigos de error de negocio que envía el backend en `errors.code`. */
 export const API_ERROR_CODES = {
@@ -101,6 +109,10 @@ export async function request<T>(
   const headers = await getAuthHeaders();
   if (!formData) headers['Content-Type'] = 'application/json';
 
+  const controller = new AbortController();
+  const timeoutMs = formData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
@@ -108,9 +120,24 @@ export async function request<T>(
       headers,
       body: formData ?? (body === undefined ? undefined : JSON.stringify(body)),
       credentials: 'include',
+      signal: controller.signal,
     });
-  } catch {
-    throw new ApiError('No se pudo conectar con el servidor. Inténtalo en unos minutos.', 0);
+  } catch (err) {
+    const timedOut = controller.signal.aborted;
+    if (__DEV__) {
+      console.warn(
+        `[EcoNeko] ${method} ${API_BASE_URL}${path} ${timedOut ? 'sin respuesta (timeout)' : 'falló'}:`,
+        err,
+      );
+    }
+    throw new ApiError(
+      timedOut
+        ? 'El servidor no respondió a tiempo. Revisa tu conexión o que la API esté disponible.'
+        : 'No se pudo conectar con el servidor. Inténtalo en unos minutos.',
+      0,
+    );
+  } finally {
+    clearTimeout(timer);
   }
 
   const payload = await response.json().catch(() => null);
