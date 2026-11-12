@@ -1,7 +1,7 @@
 // Equivale a <ProtectedRoute />: solo usuarios con sesión.
-// En web la navegación eran botones en el header; en móvil, una barra de pestañas.
+// La barra de pestañas es el navbar común (igual que AppLayout en la web).
 import { Redirect, Tabs } from 'expo-router';
-import { CreditCard, LayoutDashboard, Receipt, Sparkles } from 'lucide-react-native';
+import { CreditCard, LayoutDashboard, Receipt, Sparkles, TrendingUp } from 'lucide-react-native';
 import { useAuth } from '../../src/context/AuthContext';
 import { Screen } from '../../src/components/ui/Screen';
 import { LoadingView } from '../../src/components/ui/feedback';
@@ -34,6 +34,13 @@ export default function AppLayout() {
         options={{
           title: 'Inicio',
           tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ingresos"
+        options={{
+          title: 'Ingresos',
+          tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size} />,
         }}
       />
       <Tabs.Screen

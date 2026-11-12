@@ -88,7 +88,7 @@ export default function ChatScreen() {
   return (
     <Screen scroll={false}>
       {/* Header */}
-      <View className="mx-4 mt-2 flex-row items-center justify-between gap-3 rounded-3xl border border-neutral-100 bg-white p-4 shadow-sm">
+      <View className="mx-4 mt-2 flex-row items-center justify-between gap-3">
         <View className="flex-1 flex-row items-center gap-3">
           <View className="relative">
             <Gradient
@@ -106,7 +106,7 @@ export default function ChatScreen() {
 
           <View className="flex-1">
             <View className="flex-row items-center gap-2">
-              <Text className="text-lg font-black leading-tight text-neutral-900">NekoAI</Text>
+              <Text className="text-2xl font-black leading-tight text-neutral-900">NekoAI</Text>
               <View className="flex-row items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5">
                 <Sparkles size={12} color="#92400e" />
                 <Text className="text-[10px] font-bold uppercase tracking-wider text-amber-800">

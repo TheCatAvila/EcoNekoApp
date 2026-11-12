@@ -52,6 +52,8 @@ interface AddIncomeModalProps {
   open: boolean;
   accounts: IncomeAccount[];
   pendingIncomes?: PendingIncomeTransaction[]; // Opcional: si ya los tienes en el padre
+  /** Pestaña con la que se abre el modal (por defecto: ingreso puntual). */
+  initialMode?: IncomeMode;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -67,7 +69,7 @@ const CATEGORIES_ENDPOINT = '/TransactionCategories';
 const canReceiveIncome = (account: IncomeAccount) =>
   !account.isCreditAccount && account.typeName !== 'Loan';
 
-type IncomeMode = 'single' | 'recurring' | 'pending';
+export type IncomeMode = 'single' | 'recurring' | 'pending';
 
 function ErrorText({ children }: { children: string }) {
   return (
@@ -81,6 +83,7 @@ export default function AddIncomeModal({
   open,
   accounts,
   pendingIncomes: externalPendingIncomes,
+  initialMode = 'single',
   onClose,
   onSaved,
 }: AddIncomeModalProps) {
@@ -114,7 +117,7 @@ export default function AddIncomeModal({
   useEffect(() => {
     if (!open) return;
 
-    setMode('single');
+    setMode(initialMode);
     setAccountId(incomeAccounts.length === 1 ? incomeAccounts[0].id : '');
     setCategoryId('');
     setAmount('');

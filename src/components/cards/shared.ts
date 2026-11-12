@@ -79,3 +79,42 @@ export const canHaveCards = (account: Account) =>
 
 export const isLiquidAccount = (account: Account) =>
   account.typeName === 'Checking' || account.typeName === 'Prepaid' || account.typeName === 'Cash';
+
+/* ───────────── Agrupación por tipo de cuenta ───────────── */
+
+export type AccountGroupKey = 'credit' | 'checking' | 'prepaid' | 'cash' | 'loan' | 'other';
+
+export interface AccountGroup {
+  key: AccountGroupKey;
+  title: string;
+  shortLabel: string;
+  description: string;
+}
+
+/** Orden en que se muestran los grupos en "Todas". */
+export const ACCOUNT_GROUPS: AccountGroup[] = [
+  { key: 'credit', title: 'Tarjetas y líneas de crédito', shortLabel: 'Crédito', description: 'Cupos, pagos del mes y estados de cuenta' },
+  { key: 'checking', title: 'Cuentas corrientes y vista', shortLabel: 'Cuentas', description: 'Tu dinero disponible en el banco' },
+  { key: 'prepaid', title: 'Prepago', shortLabel: 'Prepago', description: 'Tarjetas y cuentas de prepago' },
+  { key: 'cash', title: 'Efectivo', shortLabel: 'Efectivo', description: 'Billeteras y dinero en mano' },
+  { key: 'loan', title: 'Préstamos', shortLabel: 'Préstamos', description: 'Créditos de consumo y otras deudas' },
+  { key: 'other', title: 'Otras cuentas', shortLabel: 'Otras', description: '' },
+];
+
+export const getAccountGroupKey = (account: Account): AccountGroupKey => {
+  switch (account.typeName) {
+    case 'CreditCard':
+    case 'CreditLine':
+      return 'credit';
+    case 'Checking':
+      return 'checking';
+    case 'Prepaid':
+      return 'prepaid';
+    case 'Cash':
+      return 'cash';
+    case 'Loan':
+      return 'loan';
+    default:
+      return account.isCreditAccount ? 'credit' : 'other';
+  }
+};

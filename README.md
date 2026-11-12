@@ -44,7 +44,7 @@ app/                      Rutas (expo-router)
   (auth)/                 Solo sin sesión (equivale a <GuestRoute />)
     login, register, forgot-password, reset-password
   (app)/                  Solo con sesión (equivale a <ProtectedRoute />), con barra de pestañas
-    dashboard, egresos, tarjetas, asistente
+    dashboard, ingresos, egresos, tarjetas, asistente
 src/
   screens/                Pantallas (equivalen a src/pages de la web)
   components/
@@ -57,7 +57,7 @@ src/
 
 | Web | Móvil |
 |---|---|
-| `react-router-dom` | `expo-router` (pestañas para Inicio, Egresos, Tarjetas y NekoAI) |
+| `react-router-dom` + navbar `AppLayout` | `expo-router` (pestañas para Inicio, Ingresos, Egresos, Tarjetas y NekoAI) |
 | `localStorage` / `sessionStorage` | `AsyncStorage` (usuario), `expo-secure-store` (token), memoria (correo pendiente) |
 | Cookie `econeko_auth` | Se mantiene la cookie y, si `/auth/login` devuelve `token`, también se envía como `Authorization: Bearer` |
 | `<select>`, `<input type="date">`, checkbox | `Select`, `DateField` y `Checkbox` en `src/components/ui/form.tsx` |
@@ -68,3 +68,5 @@ src/
 | `VITE_API_ECONEKOAPI_BASE_URL` | `EXPO_PUBLIC_API_ECONEKOAPI_BASE_URL` |
 
 La landing page quedó solo en la web: la app parte en el login.
+
+El registro de qué versión de la web está migrada está en [`MIGRATION.md`](MIGRATION.md).

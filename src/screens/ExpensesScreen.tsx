@@ -17,6 +17,8 @@ import ExpenseFilters from '../components/expenses/ExpenseFilters';
 import ExpenseSummaryCards from '../components/expenses/ExpenseSummaryCards';
 import { Screen } from '../components/ui/Screen';
 import { confirm } from '../components/ui/feedback';
+import { PageHeader } from '../components/ui/PageHeader';
+import { ActionButton } from '../components/ui/buttons';
 import { colors } from '../components/ui/theme';
 
 export default function ExpensesScreen() {
@@ -65,26 +67,17 @@ export default function ExpensesScreen() {
         onCategoryCreated={handleCategoryCreated}
       />
 
-      {/* Header */}
-      <View className="flex-row items-center justify-between gap-3 rounded-3xl border border-neutral-100 bg-white p-5 shadow-sm">
-        <View className="flex-1">
-          <Text className="text-xl font-black leading-tight text-neutral-900">
-            Mis Egresos Fijos
-          </Text>
-          <Text className="text-sm text-neutral-500">
-            Suscripciones y compras en cuotas, por tarjeta
-          </Text>
-        </View>
-
-        <Pressable
-          onPress={() => setIsModalOpen(true)}
-          accessibilityLabel="Nuevo egreso"
-          className="flex-row items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 active:scale-95 active:bg-neutral-800"
-        >
-          <Plus size={16} color={colors.white} />
-          <Text className="text-sm font-bold text-white">Nuevo</Text>
-        </Pressable>
-      </View>
+      <PageHeader
+        title="Egresos fijos"
+        subtitle="Suscripciones y compras en cuotas, agrupadas por tarjeta"
+        actions={
+          <ActionButton
+            onPress={() => setIsModalOpen(true)}
+            icon={<Plus size={16} color={colors.white} />}
+            label="Nuevo egreso"
+          />
+        }
+      />
 
       {/* Contenido */}
       <View className="gap-4">

@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import {
   AlertTriangle,
   CalendarDays,
   PiggyBank,
-  Plus,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
@@ -18,7 +17,6 @@ export type { DashboardHomeData } from '../../types/finance';
 
 interface DashboardHomeProps {
   data: DashboardHomeData;
-  onAddIncome: () => void;
 }
 
 // Umbrales del backend: <= 30 saludable, <= 60 precaución, > 60 riesgo
@@ -49,53 +47,7 @@ const HEALTH_STYLES: Record<
   },
 };
 
-const monthName = (month: number, year: number) => {
-  const name = new Date(year, month - 1, 1).toLocaleDateString('es-CL', { month: 'long' });
-  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`;
-};
-
-function BreakdownRow({
-  label,
-  value,
-  sign,
-  strong = false,
-}: {
-  label: string;
-  value: number;
-  sign?: '+' | '-' | '=';
-  strong?: boolean;
-}) {
-  return (
-    <View className="flex-row items-center justify-between gap-4">
-      <View className="flex-1 flex-row">
-        {sign && <Text className="w-4 text-sm text-neutral-500">{sign}</Text>}
-        <Text className={`flex-1 text-sm ${strong ? 'font-bold text-white' : 'text-neutral-400'}`}>
-          {label}
-        </Text>
-      </View>
-      <Text className={`text-sm text-white ${strong ? 'font-bold' : 'font-medium'}`}>
-        {formatCLP(value)}
-      </Text>
-    </View>
-  );
-}
-
-function DetailRow({ label, value, valueClassName = '' }: { label: string; value: string; valueClassName?: string }) {
-  return (
-    <View className="flex-row justify-between gap-2">
-      <Text className="flex-1 text-sm text-neutral-500">{label}</Text>
-      <Text className={`text-sm font-bold text-neutral-900 ${valueClassName}`}>{value}</Text>
-    </View>
-  );
-}
-
-function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <View className={`gap-5 rounded-3xl border border-neutral-100 bg-white p-6 shadow-sm ${className}`}>
-      {children}
-    </View>
-  );
-}
+/* ───────────── Piezas ───────────── */
 
 function StatTile({
   icon: Icon,
@@ -103,31 +55,68 @@ function StatTile({
   iconBg,
   label,
   value,
-  valueClassName,
+  valueClass = 'text-neutral-900',
+  hint,
 }: {
   icon: LucideIcon;
   iconColor: string;
   iconBg: string;
   label: string;
-  value: number;
-  valueClassName: string;
+  value: string;
+  valueClass?: string;
+  hint?: string;
 }) {
   return (
-    <View className="flex-row items-center gap-4 rounded-3xl border border-neutral-100 bg-white p-5 shadow-sm">
-      <View className={`h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}>
-        <Icon size={20} color={iconColor} />
-      </View>
-      <View className="flex-1">
-        <Text className="text-xs font-bold text-neutral-500">{label}</Text>
-        <Text numberOfLines={1} className={`text-xl font-black ${valueClassName}`}>
-          {formatCLP(value)}
+    <View className="flex-1 rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+      <View className="mb-2 flex-row items-center gap-2">
+        <View className={`h-8 w-8 items-center justify-center rounded-lg ${iconBg}`}>
+          <Icon size={16} color={iconColor} />
+        </View>
+        <Text numberOfLines={1} className="flex-1 text-xs font-bold text-neutral-500">
+          {label}
         </Text>
       </View>
+      <Text numberOfLines={1} adjustsFontSizeToFit className={`text-xl font-black ${valueClass}`}>
+        {value}
+      </Text>
+      {!!hint && (
+        <Text numberOfLines={1} className="mt-0.5 text-[11px] text-neutral-400">
+          {hint}
+        </Text>
+      )}
     </View>
   );
 }
 
-export default function DashboardHome({ data, onAddIncome }: DashboardHomeProps) {
+function Card({ children }: { children: ReactNode }) {
+  return (
+    <View className="gap-4 rounded-3xl border border-neutral-100 bg-white p-5 shadow-sm">
+      {children}
+    </View>
+  );
+}
+
+function Row({ label, value, valueClass = 'text-neutral-900' }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <View className="flex-row justify-between gap-4">
+      <Text className="flex-1 text-sm text-neutral-500">{label}</Text>
+      <Text className={`text-sm font-bold ${valueClass}`}>{value}</Text>
+    </View>
+  );
+}
+
+function StripItem({ label, value }: { label: string; value: number }) {
+  return (
+    <View className="flex-row items-center justify-between">
+      <Text className="text-xs text-neutral-400">{label}</Text>
+      <Text className="text-sm font-bold text-white">{formatCLP(value)}</Text>
+    </View>
+  );
+}
+
+/* ───────────── Dashboard ───────────── */
+
+export default function DashboardHome({ data }: DashboardHomeProps) {
   const { safeToSpend: s } = data;
   const health = HEALTH_STYLES[data.creditHealthSemaphore] ?? HEALTH_STYLES.Healthy;
 
@@ -135,107 +124,96 @@ export default function DashboardHome({ data, onAddIncome }: DashboardHomeProps)
   const hasIncome = data.totalMonthlyIncome > 0;
   const creditMarginNegative = s.healthyCreditMargin < 0;
   const utilization = Math.min(Math.max(data.creditUtilizationRatio, 0), 100);
+  const monthBalance = data.totalMonthlyIncome - data.totalMonthlyExpenses;
 
   return (
     <View className="gap-4" accessibilityLabel="Resumen financiero">
-      <View className="flex-row items-center justify-between px-1">
-        <Text className="flex-1 text-lg font-bold text-neutral-800">
-          Resumen de {monthName(data.month, data.year)}
-        </Text>
-        <Pressable
-          onPress={onAddIncome}
-          accessibilityRole="button"
-          className="flex-row items-center gap-2 rounded-xl bg-green-600 px-4 py-2 active:scale-95 active:bg-green-700"
-        >
-          <Plus size={16} color={colors.white} />
-          <Text className="text-sm font-bold text-white">Ingreso</Text>
-        </Pressable>
-      </View>
-
-      {/* Liquidez segura: lo primero que debe ver el usuario */}
-      <View className="gap-8 rounded-3xl bg-neutral-900 p-6">
-        <View className="gap-6">
-          <View>
-            <View className="mb-2 flex-row items-center gap-2">
-              <ShieldCheck size={16} color={colors.green400} />
-              <Text className="text-sm text-neutral-400">Liquidez disponible segura</Text>
-            </View>
-            <Text
-              adjustsFontSizeToFit
-              numberOfLines={1}
-              className={`text-4xl font-black tracking-tight ${
-                s.isInLiquidityDeficit ? 'text-red-400' : 'text-white'
-              }`}
-            >
-              {formatCLP(s.safeLiquidBalance)}
-            </Text>
-          </View>
-
-          {s.isInLiquidityDeficit && (
-            <View className="flex-row items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4">
-              <AlertTriangle size={20} color={colors.red400} />
-              <Text className="flex-1 text-sm text-red-200">
-                Tus compromisos superan tu saldo líquido por{' '}
-                <Text className="font-bold text-white">
-                  {formatCLP(Math.abs(s.safeLiquidBalance))}
-                </Text>
-                . Necesitas ese monto para cubrir lo ya facturado
-                {s.pendingLiquidSubscriptions > 0 ? ' y tus suscripciones pendientes' : ''}.
-              </Text>
-            </View>
-          )}
-
-          <View className="gap-2 border-t border-neutral-800 pt-5">
-            <BreakdownRow label="Saldo en cuentas líquidas" value={data.liquidBalance} />
-            <BreakdownRow
-              sign="-"
-              label="Suscripciones por cobrar este mes"
-              value={s.pendingLiquidSubscriptions}
-            />
-            <BreakdownRow
-              sign="-"
-              label="Estados de cuenta facturados sin pagar"
-              value={s.unpaidBilledStatements}
-            />
-            <View className="mt-2 border-t border-neutral-800 pt-2">
-              <BreakdownRow sign="=" label="Liquidez segura" value={s.safeLiquidBalance} strong />
-            </View>
-          </View>
+      {/* 1. Movimiento del mes: lo primero que se ve */}
+      <View className="gap-3">
+        <View className="flex-row gap-3">
+          <StatTile
+            icon={TrendingUp}
+            iconColor={colors.green600}
+            iconBg="bg-green-100"
+            label="Ingresos del mes"
+            value={formatCLP(data.totalMonthlyIncome)}
+          />
+          <StatTile
+            icon={TrendingDown}
+            iconColor={colors.red500}
+            iconBg="bg-red-100"
+            label="Egresos del mes"
+            value={formatCLP(data.totalMonthlyExpenses)}
+            valueClass="text-red-500"
+            hint={
+              hasIncome
+                ? `Balance: ${monthBalance >= 0 ? '+' : ''}${formatCLP(monthBalance)}`
+                : undefined
+            }
+          />
         </View>
-
-        <View className="gap-6 rounded-2xl bg-neutral-800 p-5">
-          <View>
-            <View className="mb-2 flex-row items-center gap-2">
-              <CalendarDays size={16} color={colors.yellow400} />
-              <Text className="text-sm text-neutral-400">Presupuesto diario seguro</Text>
-            </View>
-            {isPeriodActive ? (
-              <>
-                <Text className="text-3xl font-black text-white">
-                  {formatCLP(s.dailySafeLiquidSpend)}
-                </Text>
-                <Text className="mt-1 text-sm text-neutral-400">
-                  por día, durante {s.remainingDaysInMonth}{' '}
-                  {s.remainingDaysInMonth === 1 ? 'día restante' : 'días restantes'}
-                </Text>
-              </>
-            ) : (
-              <Text className="text-sm text-neutral-400">
-                El presupuesto diario solo se calcula para el mes en curso.
-              </Text>
-            )}
-          </View>
-          {isPeriodActive && s.dailySafeLiquidSpend === 0 && (
-            <Text className="text-xs text-neutral-400">
-              {s.safeLiquidBalance <= 0
-                ? 'No hay liquidez libre para gastar hoy.'
-                : 'Tu liquidez libre es menor que los días que quedan.'}
-            </Text>
-          )}
+        <View className="flex-row gap-3">
+          <StatTile
+            icon={PiggyBank}
+            iconColor={colors.blue600}
+            iconBg="bg-blue-100"
+            label="Saldo líquido"
+            value={formatCLP(data.liquidBalance)}
+            valueClass="text-blue-600"
+          />
+          <StatTile
+            icon={CalendarDays}
+            iconColor="#a16207"
+            iconBg="bg-yellow-100"
+            label="Puedes gastar hoy"
+            value={isPeriodActive ? formatCLP(s.dailySafeLiquidSpend) : '—'}
+            hint={
+              isPeriodActive
+                ? `${s.remainingDaysInMonth} ${s.remainingDaysInMonth === 1 ? 'día restante' : 'días restantes'}`
+                : 'Solo para el mes en curso'
+            }
+          />
         </View>
       </View>
 
-      {/* Crédito: margen saludable */}
+      {/* 2. Liquidez segura: franja compacta */}
+      <View className="gap-3 rounded-3xl bg-neutral-900 p-5">
+        <View>
+          <View className="mb-1 flex-row items-center gap-2">
+            <ShieldCheck size={16} color={colors.green400} />
+            <Text className="text-xs text-neutral-400">Liquidez disponible segura</Text>
+          </View>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            className={`text-3xl font-black tracking-tight ${
+              s.isInLiquidityDeficit ? 'text-red-400' : 'text-white'
+            }`}
+          >
+            {formatCLP(s.safeLiquidBalance)}
+          </Text>
+        </View>
+
+        <View className="gap-1.5 border-t border-neutral-800 pt-3">
+          <StripItem label="Saldo en cuentas" value={data.liquidBalance} />
+          <StripItem label="− Suscripciones por cobrar" value={s.pendingLiquidSubscriptions} />
+          <StripItem label="− Facturado sin pagar" value={s.unpaidBilledStatements} />
+        </View>
+
+        {s.isInLiquidityDeficit && (
+          <View className="flex-row items-start gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <AlertTriangle size={16} color={colors.red400} />
+            <Text className="flex-1 text-xs text-red-200">
+              Tus compromisos superan tu saldo líquido por{' '}
+              <Text className="font-bold text-white">{formatCLP(Math.abs(s.safeLiquidBalance))}</Text>.
+              Necesitas ese monto para cubrir lo ya facturado
+              {s.pendingLiquidSubscriptions > 0 ? ' y tus suscripciones pendientes' : ''}.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* 3. Crédito */}
       <Card>
         <View>
           <Text className="text-sm font-bold text-neutral-700">Margen de crédito saludable</Text>
@@ -244,18 +222,14 @@ export default function DashboardHome({ data, onAddIncome }: DashboardHomeProps)
           </Text>
         </View>
 
-        <Text
-          className={`text-3xl font-black ${
-            creditMarginNegative ? 'text-red-500' : 'text-neutral-900'
-          }`}
-        >
+        <Text className={`text-3xl font-black ${creditMarginNegative ? 'text-red-500' : 'text-neutral-900'}`}>
           {formatCLP(s.healthyCreditMargin)}
         </Text>
 
         {!hasIncome && (
-          <View className="flex-row items-start gap-3 rounded-xl border border-amber-100 bg-amber-50 p-4">
-            <AlertTriangle size={20} color={colors.amber500} />
-            <Text className="flex-1 text-sm text-amber-800">
+          <View className="flex-row items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+            <AlertTriangle size={16} color={colors.amber500} />
+            <Text className="flex-1 text-xs text-amber-800">
               Aún no registras ingresos este mes, por eso el margen parte en cero. Agrégalos para
               calcularlo.
             </Text>
@@ -263,15 +237,14 @@ export default function DashboardHome({ data, onAddIncome }: DashboardHomeProps)
         )}
 
         <View className="gap-2 border-t border-neutral-100 pt-4">
-          <DetailRow label="Capacidad de pago estimada" value={formatCLP(s.estimatedPaymentCapacity)} />
-          <DetailRow label="Facturación del ciclo abierto" value={formatCLP(s.openStatementsTotalBilled)} />
+          <Row label="Capacidad de pago estimada" value={formatCLP(s.estimatedPaymentCapacity)} />
+          <Row label="Facturación del ciclo abierto" value={formatCLP(s.openStatementsTotalBilled)} />
           {isPeriodActive && (
-            <DetailRow label="Gasto diario con crédito" value={formatCLP(s.dailyHealthyCreditSpend)} />
+            <Row label="Gasto diario con crédito" value={formatCLP(s.dailyHealthyCreditSpend)} />
           )}
         </View>
       </Card>
 
-      {/* Crédito: salud del cupo */}
       <Card>
         <View className="flex-row items-start justify-between gap-4">
           <View className="flex-1">
@@ -309,39 +282,11 @@ export default function DashboardHome({ data, onAddIncome }: DashboardHomeProps)
         </View>
 
         <View className="gap-2 border-t border-neutral-100 pt-4">
-          <DetailRow label="Cupo utilizado" value={formatCLP(data.totalCreditUsed)} valueClassName="text-red-500" />
-          <DetailRow label="Cupo disponible" value={formatCLP(data.totalAvailableCredit)} />
-          <DetailRow label="Cupo total" value={formatCLP(data.totalCreditLimit)} />
+          <Row label="Cupo utilizado" value={formatCLP(data.totalCreditUsed)} valueClass="text-red-500" />
+          <Row label="Cupo disponible" value={formatCLP(data.totalAvailableCredit)} />
+          <Row label="Cupo total" value={formatCLP(data.totalCreditLimit)} />
         </View>
       </Card>
-
-      {/* Movimiento del mes */}
-      <View className="gap-4">
-        <StatTile
-          icon={TrendingUp}
-          iconColor={colors.green600}
-          iconBg="bg-green-100"
-          label="Ingresos del mes"
-          value={data.totalMonthlyIncome}
-          valueClassName="text-neutral-800"
-        />
-        <StatTile
-          icon={TrendingDown}
-          iconColor={colors.red500}
-          iconBg="bg-red-100"
-          label="Egresos del mes"
-          value={data.totalMonthlyExpenses}
-          valueClassName="text-red-500"
-        />
-        <StatTile
-          icon={PiggyBank}
-          iconColor={colors.blue600}
-          iconBg="bg-blue-100"
-          label="Saldo líquido"
-          value={data.liquidBalance}
-          valueClassName="text-blue-600"
-        />
-      </View>
     </View>
   );
 }

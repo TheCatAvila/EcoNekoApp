@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { AlertTriangle, Cat, LogOut } from 'lucide-react-native';
+import { AlertTriangle, LogOut, Plus } from 'lucide-react-native';
 import { request } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import AddIncomeModal from '../components/dashboard/AddIncomeModal';
 import DashboardHome from '../components/dashboard/DashboardHome';
 import { Screen } from '../components/ui/Screen';
-import { Gradient } from '../components/ui/Gradient';
+import { PageHeader } from '../components/ui/PageHeader';
+import { ActionButton } from '../components/ui/buttons';
 import { LoadingView } from '../components/ui/feedback';
-import { brandGradient, colors } from '../components/ui/theme';
+import { colors } from '../components/ui/theme';
 import type { Account, DashboardHomeData } from '../types/finance';
 import type { User } from '../types/auth';
+
+const monthName = (month: number, year: number) => {
+  const name = new Date(year, month - 1, 1).toLocaleDateString('es-CL', { month: 'long' });
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`;
+};
 
 export default function DashboardScreen() {
   const { logout } = useAuth();
@@ -110,41 +116,34 @@ export default function DashboardScreen() {
         }}
       />
 
-      {/* Header (la navegación a Tarjetas/Egresos/NekoAI está en la barra de pestañas) */}
-      <View className="flex-row items-center justify-between rounded-3xl border border-neutral-100 bg-white p-5 shadow-sm">
-        <View className="flex-1 flex-row items-center gap-4">
-          <Gradient
-            colors={brandGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            className="h-12 w-12 rounded-2xl p-0.5"
-          >
-            <View className="flex-1 items-center justify-center rounded-2xl bg-white">
-              <Cat size={24} color={colors.red500} strokeWidth={1.75} />
-            </View>
-          </Gradient>
-          <View className="flex-1">
-            <Text className="text-xl font-black leading-tight text-neutral-900">EcoNeko</Text>
-            <Text numberOfLines={1} className="text-sm text-neutral-500">
-              Hola, {userData?.firstName} {userData?.lastName}
-            </Text>
-          </View>
+      {/* Encabezado: saludo, cerrar sesión y acción de la página */}
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="flex-1">
+          <PageHeader
+            title={`Hola, ${userData?.firstName ?? ''}`}
+            subtitle={summary ? `Resumen de ${monthName(summary.month, summary.year)}` : undefined}
+            actions={
+              <ActionButton
+                variant="green"
+                onPress={() => setIsAddIncomeModalOpen(true)}
+                icon={<Plus size={16} color={colors.white} />}
+                label="Nuevo ingreso"
+              />
+            }
+          />
         </View>
-
         <Pressable
           onPress={handleLogout}
           accessibilityLabel="Cerrar sesión"
           hitSlop={8}
-          className="rounded-xl p-2.5 active:bg-red-50"
+          className="flex-row items-center gap-1.5 rounded-xl px-3 py-2 active:bg-red-50"
         >
-          <LogOut size={20} color={colors.neutral500} />
+          <LogOut size={16} color={colors.neutral500} />
+          <Text className="text-sm font-bold text-neutral-500">Salir</Text>
         </Pressable>
       </View>
 
-      {/* Resumen financiero */}
-      {summary && (
-        <DashboardHome data={summary} onAddIncome={() => setIsAddIncomeModalOpen(true)} />
-      )}
+      {summary && <DashboardHome data={summary} />}
     </Screen>
   );
 }
