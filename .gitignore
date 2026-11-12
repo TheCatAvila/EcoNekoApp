@@ -1,0 +1,22 @@
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Builds nativos generados (prebuild)
+/ios
+/android
+
+# Variables de entorno: NUNCA subas el .env real
+.env
+.env*.local
+!.env.example
+
+*.log
+.DS_Store
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision

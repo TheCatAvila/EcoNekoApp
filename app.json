@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "EcoNeko",
+    "slug": "econekoapp",
+    "scheme": "econeko",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.thecatavila.econeko"
+    },
+    "android": {
+      "package": "com.thecatavila.econeko"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
